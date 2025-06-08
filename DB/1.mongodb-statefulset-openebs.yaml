@@ -1,0 +1,141 @@
+# StatefulSet이 뜨면서 자동으로 PVC생성해줌
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: mongodb
+  namespace: mongodb  # 네임스페이스를 mongodb로 설정
+spec:
+  serviceName: mongodb-svc
+  replicas: 3
+  selector:
+    matchLabels:
+      app: mongodb
+  template:
+    metadata:
+      labels:
+        app: mongodb
+    spec:
+      affinity:
+        podAntiAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+          - labelSelector:
+              matchExpressions:
+              - key: app
+                operator: In
+                values:
+                - mongodb
+            topologyKey: "kubernetes.io/hostname"
+        nodeAffinity:
+          requiredDuringSchedulingIgnoredDuringExecution:
+            nodeSelectorTerms:
+            - matchExpressions:
+              - key: kubernetes.io/hostname
+                operator: In
+                values:
+                - worker1
+                - worker2
+                - worker3
+      containers:
+      - name: mongodb
+        image: mongo:5.0.0
+        ports:
+        - containerPort: 27017
+        command:
+        - "mongod"
+        - "--bind_ip"
+        - "0.0.0.0"
+        - "--replSet"
+        - "rs0"
+        volumeMounts:
+        - name: mongodb-data
+          mountPath: /data/db
+        resources:
+          requests:
+            cpu: 100m
+            memory: 100Mi
+          limits:
+            cpu: 300m
+            memory: 300Mi
+  volumeClaimTemplates:
+  - metadata:
+      name: mongodb-data
+      namespace: mongodb  # 네임스페이스를 mongodb로 설정
+    spec:
+      accessModes: [ "ReadWriteOnce" ]
+      resources:
+        requests:
+          storage: 1Gi
+      storageClassName: openebs-hostpath
+---
+# BACK에서 다이렉트로 접속하기 위한 svc
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-svc
+  namespace: mongodb  # 네임스페이스를 mongodb로 설정
+  labels:
+    app: mongodb
+spec:
+  type: ClusterIP
+  selector:
+    app: mongodb
+  ports:
+  - port: 27017
+    targetPort: 27017
+---
+# PRIMARY MongoDB에 다이렉트로 접속하기 위한 svc
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-pri-svc
+  namespace: mongodb  # 네임스페이스를 mongodb로 설정
+  labels:
+    app: mongodb
+    statefulset.kubernetes.io/pod-name: mongodb-0
+spec:
+  type: NodePort
+  selector:
+    app: mongodb
+    statefulset.kubernetes.io/pod-name: mongodb-0
+  ports:
+  - port: 27017
+    targetPort: 27017
+    nodePort: 32017
+---
+# SECONDARY MongoDB에 다이렉트로 접속하기 위한 svc
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-sec1-svc
+  namespace: mongodb  # 네임스페이스를 mongodb로 설정
+  labels:
+    app: mongodb
+    statefulset.kubernetes.io/pod-name: mongodb-1
+spec:
+  type: NodePort
+  selector:
+    app: mongodb
+    statefulset.kubernetes.io/pod-name: mongodb-1
+  ports:
+  - port: 27017
+    targetPort: 27017
+    nodePort: 32018
+---
+# SECONDARY MongoDB에 다이렉트로 접속하기 위한 svc
+apiVersion: v1
+kind: Service
+metadata:
+  name: mongodb-sec2-svc
+  namespace: mongodb  # 네임스페이스를 mongodb로 설정
+  labels:
+    app: mongodb
+    statefulset.kubernetes.io/pod-name: mongodb-2
+spec:
+  type: NodePort
+  selector:
+    app: mongodb
+    statefulset.kubernetes.io/pod-name: mongodb-2
+  ports:
+  - port: 27017
+    targetPort: 27017
+    nodePort: 32019
