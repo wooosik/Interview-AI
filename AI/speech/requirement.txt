@@ -1,0 +1,8 @@
+fastapi[all]
+transformers
+boto3
+openai
+python-dotenv
+opentelemetry-distro==0.46b0
+opentelemetry-exporter-otlp-proto-grpc==1.25.0
+opentelemetry-instrumentation-fastapi==0.46b0
